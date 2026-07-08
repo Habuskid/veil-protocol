@@ -160,20 +160,13 @@ export default function RegistryTab({ provider, signer, address, fhevmReady, sho
       } else {
         let tx;
         try {
-          // Older wrappers use unwrap(uint64) which takes plaintext amounts
+          // Zama FHEVM wrappers use unwrap(uint64) taking a plaintext amount.
+          // It handles the encrypted burn asynchronously via KMS.
           tx = await wrapper["unwrap(uint64)"](wrapperAmount);
         } catch (e) {
-          if (e.code === 'CALL_EXCEPTION' || e.message.includes('missing revert data') || e.message.includes('require(false)')) {
-            try {
-              // Newer wrappers might use unwrap(uint256)
-              tx = await wrapper["unwrap(uint256)"](wrapperAmount);
-            } catch (e2) {
-              console.error("Unwrap failed for both uint64 and uint256:", e2);
-              throw e2;
-            }
-          } else {
-            throw e;
-          }
+          console.error("Unwrap reverted on-chain:", e);
+          const reason = e.reason || e.message || String(e);
+          throw new Error(`The smart contract rejected the unwrap. This usually means: 1) You do not have enough wrapped tokens, or 2) You have a pending unwrap request being processed by the Zama KMS. (Raw error: ${e.code || reason})`);
         }
         await tx.wait();
         if (addTxHistory) addTxHistory({ type: 'Unwrap', hash: tx.hash, details: `Unwrapped ${amountStr} ${pair.erc20Sym}` });
