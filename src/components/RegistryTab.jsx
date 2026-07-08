@@ -166,7 +166,7 @@ export default function RegistryTab({ provider, signer, address, fhevmReady, sho
         let tx;
         try {
           const publicClient = createPublicClient({ chain: sepolia, transport: http() });
-          const walletClient = createWalletClient({ chain: sepolia, transport: custom(window.ethereum) });
+          const walletClient = createWalletClient({ account: address, chain: sepolia, transport: custom(window.ethereum) });
           
           const config = createConfig({
             chains: [sepolia],
