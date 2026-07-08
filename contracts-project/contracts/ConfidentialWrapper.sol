@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import {FHE, euint64} from "@fhevm/solidity/lib/FHE.sol";
+import {FHE} from "@fhevm/solidity/lib/FHE.sol";
 import {ZamaEthereumConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
 import {ERC7984} from "@openzeppelin/confidential-contracts/token/ERC7984/ERC7984.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -26,14 +26,8 @@ contract ConfidentialWrapper is ZamaEthereumConfig, ERC7984 {
         require(amount > 0, "Amount must be > 0");
         // Transfer plain tokens from user to this contract
         underlying.transferFrom(msg.sender, address(this), amount);
-
-        // Encrypt and grant ACL access so the contract/caller can use this handle
-        euint64 encAmount = FHE.asEuint64(amount);
-        FHE.allowThis(encAmount);
-        FHE.allow(encAmount, msg.sender);
-
         // Mint encrypted tokens to user
-        _mint(msg.sender, encAmount);
+        _mint(msg.sender, FHE.asEuint64(amount));
     }
 
     /**
@@ -43,14 +37,8 @@ contract ConfidentialWrapper is ZamaEthereumConfig, ERC7984 {
      */
     function unwrap(uint64 amount) external {
         require(amount > 0, "Amount must be > 0");
-
-        // Encrypt and grant ACL access so the contract/caller can use this handle
-        euint64 encAmount = FHE.asEuint64(amount);
-        FHE.allowThis(encAmount);
-        FHE.allow(encAmount, msg.sender);
-
         // Burn encrypted tokens - automatically reverts on insufficient balance
-        _burn(msg.sender, encAmount);
+        _burn(msg.sender, FHE.asEuint64(amount));
         // Send plain tokens back
         underlying.transfer(msg.sender, amount);
     }
