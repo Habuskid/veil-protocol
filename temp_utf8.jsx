@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Contract, parseUnits, formatUnits } from 'ethers';
 import { REGISTRY_ADDRESS, REGISTRY_ABI, ERC20_ABI, ERC7984_ABI, WRAPPER_ABI } from '../config/addresses';
 import localPairs from '../config/pairs.json';
@@ -160,11 +160,20 @@ export default function RegistryTab({ provider, signer, address, fhevmReady, sho
       } else {
         let tx;
         try {
-          // Older wrappers use unwrap(uint256 amount)
-          tx = await wrapper.unwrap(wrapperAmount);
+          // Older wrappers use unwrap(uint64) which takes plaintext amounts
+          tx = await wrapper["unwrap(uint64)"](wrapperAmount);
         } catch (e) {
-          // Fallback for wrapped tokens that use WETH-style withdraw(uint256 amount)
-          tx = await wrapper.withdraw(wrapperAmount);
+          if (e.code === 'CALL_EXCEPTION' || e.message.includes('missing revert data') || e.message.includes('require(false)')) {
+            try {
+              // Newer wrappers might use unwrap(uint256)
+              tx = await wrapper["unwrap(uint256)"](wrapperAmount);
+            } catch (e2) {
+              console.error("Unwrap failed for both uint64 and uint256:", e2);
+              throw e2;
+            }
+          } else {
+            throw e;
+          }
         }
         await tx.wait();
         if (addTxHistory) addTxHistory({ type: 'Unwrap', hash: tx.hash, details: `Unwrapped ${amountStr} ${pair.erc20Sym}` });
@@ -234,7 +243,7 @@ export default function RegistryTab({ provider, signer, address, fhevmReady, sho
         <div className="w-full max-w-lg mb-4">
           <div className="text-center text-white/60 text-xs font-bold tracking-widest uppercase mb-3 flex items-center justify-center gap-2">
             <span>ERC-20</span>
-            <span>↔</span>
+            <span>Γåö</span>
             <span>ERC-7984</span>
           </div>
           <div className="relative">
@@ -245,7 +254,7 @@ export default function RegistryTab({ provider, signer, address, fhevmReady, sho
             >
               {pairs.map((p, i) => (
                 <option key={i} value={i} className="bg-[#1a1a1a]">
-                  {p.erc20Sym} ↔ {p.erc7984Sym} {p.isRestricted ? '(Restricted)' : ''}
+                  {p.erc20Sym} Γåö {p.erc7984Sym} {p.isRestricted ? '(Restricted)' : ''}
                 </option>
               ))}
             </select>
