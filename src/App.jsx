@@ -217,9 +217,7 @@ export default function App() {
               disconnect={disconnect}
             />
           )}
-          <div className="absolute bottom-4 right-4 text-xs font-mono text-white/30">
-            v1.0.4
-          </div>
+
         </div>
       </header>
 

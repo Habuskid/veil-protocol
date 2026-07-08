@@ -156,8 +156,18 @@ export default function RegistryTab({ provider, signer, address, fhevmReady, sho
         }
         await tx.wait();
         if (addTxHistory) addTxHistory({ type: 'Wrap', hash: tx.hash, details: `Wrapped ${amountStr} ${pair.erc20Sym}` });
+        
+        // Optimistically update plain balance for seamless UX
+        setBalances(prev => ({
+          ...prev,
+          [index]: {
+            ...prev[index],
+            plain: String(Math.max(0, Number(prev[index].plain) - Number(amountStr)))
+          }
+        }));
+        
         showToast("Successfully wrapped!", "success");
-        loadPairs(); // refresh balance
+        setTimeout(loadPairs, 3000); // refresh later to sync with RPC
       } else {
         let tx;
         try {
@@ -228,12 +238,21 @@ export default function RegistryTab({ provider, signer, address, fhevmReady, sho
         }
         
         if (addTxHistory) addTxHistory({ type: 'Unwrap', hash: tx?.hash, details: `Unwrapped ${amountStr} ${pair.erc20Sym}` });
+        
+        // Optimistically update plain balance for seamless UX
+        setBalances(prev => ({
+          ...prev,
+          [index]: {
+            ...prev[index],
+            plain: String(Number(prev[index].plain) + Number(amountStr))
+          }
+        }));
+        
         showToast("Successfully unwrapped!", "success");
-        loadPairs(); // refresh balance
+        setTimeout(loadPairs, 3000); // refresh later to sync with RPC
       }
       
       setAmounts({ ...amounts, [`${modeStr}-${index}`]: '' });
-      loadPairs();
     } catch (e) {
       console.error(e);
       showToast(`${isWrap ? 'Wrap' : 'Unwrap'} failed: ` + (e.message || String(e)), "error");
