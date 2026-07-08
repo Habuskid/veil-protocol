@@ -129,6 +129,8 @@ export default function RegistryTab({ provider, signer, address, fhevmReady, sho
     // Yield to the browser so React can immediately paint the loading spinner
     await new Promise(r => setTimeout(r, 10));
     
+    const oldPlainBalance = balances[index]?.plain || '0';
+    
     try {
       // The amount to approve on the ERC20 token uses the underlying decimals
       const erc20Amount = parseUnits(amountStr, pair.erc20Dec);
@@ -257,12 +259,32 @@ export default function RegistryTab({ provider, signer, address, fhevmReady, sho
       
       setAmounts({ ...amounts, [`${modeStr}-${index}`]: '' });
       
-      // SUCCESS path: keep the button in a 'syncing' state while we wait for the RPC to catch up
+      // SUCCESS path: keep the button in a 'syncing' state while we wait for the RPC to officially index the transaction
       setActionLoading(`syncing-${index}`);
-      setTimeout(() => {
-        loadPairs();
+      
+      const pollRpc = async () => {
+        try {
+          const erc20 = new Contract(pair.erc20, ERC20_ABI, provider);
+          let attempts = 0;
+          while (attempts < 10) {
+            await new Promise(r => setTimeout(r, 2000)); // wait 2 seconds between polls
+            const newRaw = await erc20.balanceOf(address);
+            const newPlain = formatUnits(newRaw, pair.erc20Dec);
+            // Break if the blockchain balance has successfully moved away from the old pre-transaction balance
+            if (newPlain !== oldPlainBalance) {
+              break; 
+            }
+            attempts++;
+          }
+        } catch(e) {
+          console.error("Polling error:", e);
+        }
+        
+        await loadPairs();
         setActionLoading(null);
-      }, 4000); // 4 seconds delay for public RPC
+      };
+      
+      pollRpc();
       return;
       
     } catch (e) {
