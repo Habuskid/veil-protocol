@@ -32,5 +32,6 @@ export const WRAPPER_ABI = [
   "function wrap(uint64 amount) external",
   "function unwrap(uint64 amount) external",
   "function wrap(address to, uint256 amount) external",
+  "function unwrap(uint256 amount) external",
   "function unwrap(address tokenOut, address to, bytes32 encryptedAmount) external"
 ];
