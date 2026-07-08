@@ -218,7 +218,7 @@ export default function App() {
             />
           )}
           <div className="absolute bottom-4 right-4 text-xs font-mono text-white/30">
-            v1.0.4
+            v1.0.5
           </div>
         </div>
       </header>
