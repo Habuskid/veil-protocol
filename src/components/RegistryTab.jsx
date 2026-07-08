@@ -4,7 +4,7 @@ import { REGISTRY_ADDRESS, REGISTRY_ABI, ERC20_ABI, ERC7984_ABI, WRAPPER_ABI } f
 import localPairs from '../config/pairs.json';
 import { ArrowPathIcon, LockClosedIcon, LockOpenIcon, EyeIcon, DocumentDuplicateIcon } from '@heroicons/react/24/outline';
 import { getFhevmInstance, decryptFhevm, encryptFhevm } from '../lib/zama';
-import { Interface, hexlify } from 'ethers';
+import { Interface, hexlify, getAddress } from 'ethers';
 
 export default function RegistryTab({ provider, signer, address, fhevmReady, showToast, addTxHistory }) {
   const [pairs, setPairs] = useState([]);
@@ -167,7 +167,9 @@ export default function RegistryTab({ provider, signer, address, fhevmReady, sho
           const instance = getFhevmInstance();
           if (!instance) throw new Error("FHEVM not initialized");
           
-          const enc = await instance.createEncryptedInput(pair.erc7984, address).add64(wrapperAmount).encrypt();
+          const safeContractAddress = getAddress(pair.erc7984);
+          const safeUserAddress = getAddress(address);
+          const enc = await instance.createEncryptedInput(safeContractAddress, safeUserAddress).add64(wrapperAmount).encrypt();
           const encHandle = hexlify(enc.handles[0]);
           const inputProof = hexlify(enc.inputProof);
           
