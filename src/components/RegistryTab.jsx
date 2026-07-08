@@ -160,12 +160,13 @@ export default function RegistryTab({ provider, signer, address, fhevmReady, sho
         await tx.wait();
         if (addTxHistory) addTxHistory({ type: 'Wrap', hash: tx.hash, details: `Wrapped ${amountStr} ${pair.erc20Sym}` });
         
-        // Optimistically update plain balance for seamless UX
+        // Optimistically update both balances for seamless UX
         setBalances(prev => ({
           ...prev,
           [index]: {
             ...prev[index],
-            plain: String(Math.max(0, Number(prev[index].plain) - Number(amountStr)))
+            plain: String(Math.max(0, Number(prev[index].plain) - Number(amountStr))),
+            confidential: prev[index].confidential !== null ? String(Number(prev[index].confidential) + Number(amountStr)) : null
           }
         }));
         
@@ -241,12 +242,13 @@ export default function RegistryTab({ provider, signer, address, fhevmReady, sho
         
         if (addTxHistory) addTxHistory({ type: 'Unwrap', hash: tx?.hash, details: `Unwrapped ${amountStr} ${pair.erc20Sym}` });
         
-        // Optimistically update plain balance for seamless UX
+        // Optimistically update both balances for seamless UX
         setBalances(prev => ({
           ...prev,
           [index]: {
             ...prev[index],
-            plain: String(Number(prev[index].plain) + Number(amountStr))
+            plain: String(Number(prev[index].plain) + Number(amountStr)),
+            confidential: prev[index].confidential !== null ? String(Math.max(0, Number(prev[index].confidential) - Number(amountStr))) : null
           }
         }));
         
