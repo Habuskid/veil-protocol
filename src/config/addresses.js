@@ -29,11 +29,15 @@ export const ERC7984_ABI = [
 
 // The wrapper has multiple standard versions deployed on Sepolia
 export const WRAPPER_ABI = [
+  "function wrap(uint256 amount) external",
   "function wrap(uint64 amount) external",
-  "function unwrap(uint64 amount) external",
   "function wrap(address to, uint256 amount) external",
   "function unwrap(uint256 amount) external",
+  "function unwrap(uint64 amount) external",
   "function unwrap(address to, uint256 amount) external",
-  "function deposit(uint256 amount, address to) external",
-  "function withdraw(uint256 amount) external"
+  "function unwrap(address from, address to, bytes32 encryptedAmount, bytes inputProof) returns (bytes32)",
+  "function unwrapAmount(bytes32) view returns (bytes32)",
+  "function finalizeUnwrap(bytes32 unwrapRequestId, uint64 unwrapAmountCleartext, bytes decryptionProof)",
+  "event UnwrapRequested(address indexed receiver, bytes32 indexed unwrapRequestId, bytes32 amount)",
+  "event Unwrap(address indexed owner, uint256 amount)"
 ];

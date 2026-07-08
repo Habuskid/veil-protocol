@@ -3,7 +3,8 @@ import { Contract, parseUnits, formatUnits } from 'ethers';
 import { REGISTRY_ADDRESS, REGISTRY_ABI, ERC20_ABI, ERC7984_ABI, WRAPPER_ABI } from '../config/addresses';
 import localPairs from '../config/pairs.json';
 import { ArrowPathIcon, LockClosedIcon, LockOpenIcon, EyeIcon, DocumentDuplicateIcon } from '@heroicons/react/24/outline';
-import { getFhevmInstance, decryptFhevm } from '../lib/zama';
+import { getFhevmInstance, decryptFhevm, encryptFhevm } from '../lib/zama';
+import { Interface, hexlify } from 'ethers';
 
 export default function RegistryTab({ provider, signer, address, fhevmReady, showToast, addTxHistory }) {
   const [pairs, setPairs] = useState([]);
@@ -160,18 +161,71 @@ export default function RegistryTab({ provider, signer, address, fhevmReady, sho
       } else {
         let tx;
         try {
-          // Older wrappers use unwrap(uint64)
-          tx = await wrapper["unwrap(uint64)"](wrapperAmount);
+          // Attempt the ERC7984 2-step unwrap:
+          // 1. Encrypt the wrapper amount into a FHE ciphertext
+          showToast("Encrypting unwrap amount...", "info");
+          const instance = getFhevmInstance();
+          if (!instance) throw new Error("FHEVM not initialized");
+          
+          const enc = await instance.createEncryptedInput(pair.erc7984, address).add64(wrapperAmount).encrypt();
+          const encHandle = hexlify(enc.handles[0]);
+          const inputProof = hexlify(enc.inputProof);
+          
+          showToast("Requesting unwrap...", "info");
+          // Send unwrap request
+          const utx = await wrapper["unwrap(address,address,bytes32,bytes)"](address, address, encHandle, inputProof);
+          const receipt = await utx.wait();
+          
+          // Parse UnwrapRequested to find the requestId and amountHandle
+          const iface = new Interface(["event UnwrapRequested(address indexed receiver, bytes32 indexed unwrapRequestId, bytes32 amount)"]);
+          let requestId = "";
+          let amountHandle = "";
+          for (const log of receipt.logs) {
+            try {
+              const parsed = iface.parseLog({ topics: [...log.topics], data: log.data });
+              if (parsed && parsed.name === "UnwrapRequested") {
+                requestId = parsed.args.unwrapRequestId;
+                amountHandle = parsed.args.amount;
+                break;
+              }
+            } catch (e) {}
+          }
+          
+          if (!requestId || !amountHandle) {
+            throw new Error("UnwrapRequested event not found in transaction logs");
+          }
+          
+          showToast("Public-decrypting unwrap amount via KMS...", "info");
+          const pd = await instance.publicDecrypt([amountHandle]);
+          
+          const rawCleartext = pd.clearValues[amountHandle] ?? Object.values(pd.clearValues)[0];
+          const cleartext = BigInt(rawCleartext);
+          
+          showToast("Finalizing unwrap on-chain...", "info");
+          tx = await wrapper.finalizeUnwrap(requestId, cleartext, pd.decryptionProof);
+          await tx.wait();
+          
         } catch (e) {
-          if (e.code === 'CALL_EXCEPTION' || e.code === 'INVALID_ARGUMENT' || e.message.includes('missing revert data') || e.message.includes('require(false)')) {
-            // Newer wrappers use unwrap(address,uint256) and take the underlying amount
-            tx = await wrapper["unwrap(address,uint256)"](address, erc20Amount);
+          if (e.code === 'CALL_EXCEPTION' || e.message.includes('missing revert data')) {
+            // Fallback for simple synchronous or Gateway unwraps if it's NOT an ERC7984 wrapper
+            try {
+              tx = await wrapper["unwrap(uint64)"](wrapperAmount);
+              await tx.wait();
+            } catch (err2) {
+              try {
+                 tx = await wrapper["unwrap(uint256)"](wrapperAmount);
+                 await tx.wait();
+              } catch (err3) {
+                 tx = await wrapper["unwrap(address,uint256)"](address, erc20Amount);
+                 await tx.wait();
+              }
+            }
           } else {
             throw e;
           }
         }
-        await tx.wait();
-        if (addTxHistory) addTxHistory({ type: 'Unwrap', hash: tx.hash, details: `Unwrapped ${amountStr} ${pair.erc20Sym}` });
+        
+        if (addTxHistory) addTxHistory({ type: 'Unwrap', hash: tx?.hash, details: `Unwrapped ${amountStr} ${pair.erc20Sym}` });
         showToast("Successfully unwrapped!", "success");
         loadPairs(); // refresh balance
       }
