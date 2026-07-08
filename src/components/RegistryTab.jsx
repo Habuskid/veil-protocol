@@ -170,7 +170,6 @@ export default function RegistryTab({ provider, signer, address, fhevmReady, sho
         }));
         
         showToast("Successfully wrapped!", "success");
-        setTimeout(loadPairs, 3000); // refresh later to sync with RPC
       } else {
         let tx;
         try {
@@ -252,10 +251,18 @@ export default function RegistryTab({ provider, signer, address, fhevmReady, sho
         }));
         
         showToast("Successfully unwrapped!", "success");
-        setTimeout(loadPairs, 3000); // refresh later to sync with RPC
       }
       
       setAmounts({ ...amounts, [`${modeStr}-${index}`]: '' });
+      
+      // SUCCESS path: keep the button in a 'syncing' state while we wait for the RPC to catch up
+      setActionLoading(`syncing-${index}`);
+      setTimeout(() => {
+        loadPairs();
+        setActionLoading(null);
+      }, 4000); // 4 seconds delay for public RPC
+      return;
+      
     } catch (e) {
       console.error(e);
       showToast(`${isWrap ? 'Wrap' : 'Unwrap'} failed: ` + (e.message || String(e)), "error");
@@ -347,7 +354,8 @@ export default function RegistryTab({ provider, signer, address, fhevmReady, sho
         const bal = balances[idx] || { plain: '0', confidential: null };
         const isWrap = mode === 'wrap';
         const actionStr = isWrap ? 'wrap' : 'unwrap';
-        const isLoading = actionLoading === `${actionStr}-${idx}`;
+        const isSyncing = actionLoading === `syncing-${idx}`;
+        const isLoading = actionLoading === `${actionStr}-${idx}` || isSyncing;
 
         return (
           <div key={idx} className="solid-card w-full max-w-lg flex flex-col relative overflow-visible mb-4 p-6">
@@ -444,7 +452,7 @@ export default function RegistryTab({ provider, signer, address, fhevmReady, sho
                 disabled={isLoading || !signer}
               >
                 {isWrap ? <LockClosedIcon className="w-5 h-5" /> : <LockOpenIcon className="w-5 h-5" />}
-                {isLoading ? 'Processing...' : (isWrap ? 'Wrap to Confidential' : 'Unwrap to Plain')}
+                {isSyncing ? 'Syncing...' : (isLoading ? 'Processing...' : (isWrap ? 'Wrap to Confidential' : 'Unwrap to Plain'))}
               </button>
             </div>
             
