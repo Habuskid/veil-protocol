@@ -126,6 +126,9 @@ export default function RegistryTab({ provider, signer, address, fhevmReady, sho
     if (!amountStr || isNaN(amountStr)) return showToast("Invalid amount", "error");
     
     setActionLoading(`${modeStr}-${index}`);
+    // Yield to the browser so React can immediately paint the loading spinner
+    await new Promise(r => setTimeout(r, 10));
+    
     try {
       // The amount to approve on the ERC20 token uses the underlying decimals
       const erc20Amount = parseUnits(amountStr, pair.erc20Dec);
