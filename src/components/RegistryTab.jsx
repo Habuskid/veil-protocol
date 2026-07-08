@@ -4,11 +4,6 @@ import { REGISTRY_ADDRESS, REGISTRY_ABI, ERC20_ABI, ERC7984_ABI, WRAPPER_ABI } f
 import localPairs from '../config/pairs.json';
 import { ArrowPathIcon, LockClosedIcon, LockOpenIcon, EyeIcon, DocumentDuplicateIcon } from '@heroicons/react/24/outline';
 import { getFhevmInstance, decryptFhevm } from '../lib/zama';
-import { createWalletClient, custom, createPublicClient, http } from 'viem';
-import { sepolia } from 'viem/chains';
-import { createConfig } from "@zama-fhe/sdk/viem";
-import { ZamaSDK } from "@zama-fhe/sdk";
-import { web } from "@zama-fhe/sdk/web";
 
 export default function RegistryTab({ provider, signer, address, fhevmReady, showToast, addTxHistory }) {
   const [pairs, setPairs] = useState([]);
@@ -165,37 +160,15 @@ export default function RegistryTab({ provider, signer, address, fhevmReady, sho
       } else {
         let tx;
         try {
-          const publicClient = createPublicClient({ chain: sepolia, transport: http() });
-          const walletClient = createWalletClient({ account: address, chain: sepolia, transport: custom(window.ethereum) });
-          
-          const config = createConfig({
-            chains: [sepolia],
-            publicClient,
-            walletClient,
-            relayers: { [sepolia.id]: web() },
-          });
-          const sdk = new ZamaSDK(config);
-          const wrappedToken = sdk.createWrappedToken(pair.erc7984);
-          
-          const { txHash, receipt } = await wrappedToken.unshield(BigInt(wrapperAmount), {
-            skipBalanceCheck: true,
-            onUnwrapSubmitted: (hash) => {
-               showToast("Unwrap submitted... waiting for proof", "info");
-            },
-            onFinalizing: () => {
-               showToast("Waiting for decryption proof from KMS...", "info");
-            },
-            onFinalizeSubmitted: (hash) => {
-               showToast("Proof received! Finalizing unshield...", "info");
-            }
-          });
-          
-          // Mimic the ethers tx object so we can use it below if needed, though we already have the receipt
-          tx = { hash: txHash, wait: async () => receipt };
+          // Older wrappers use unwrap(uint64)
+          tx = await wrapper["unwrap(uint64)"](wrapperAmount);
         } catch (e) {
-          console.error("SDK Unshield failed:", e);
-          const reason = e.reason || e.message || String(e);
-          throw new Error(`The unshield process failed: ${reason}`);
+          if (e.code === 'CALL_EXCEPTION' || e.code === 'INVALID_ARGUMENT' || e.message.includes('missing revert data') || e.message.includes('require(false)')) {
+            // Newer wrappers use unwrap(address,uint256) and take the underlying amount
+            tx = await wrapper["unwrap(address,uint256)"](address, erc20Amount);
+          } else {
+            throw e;
+          }
         }
         await tx.wait();
         if (addTxHistory) addTxHistory({ type: 'Unwrap', hash: tx.hash, details: `Unwrapped ${amountStr} ${pair.erc20Sym}` });
