@@ -178,6 +178,7 @@ export default function RegistryTab({ provider, signer, address, fhevmReady, sho
           const wrappedToken = sdk.createWrappedToken(pair.erc7984);
           
           const { txHash, receipt } = await wrappedToken.unshield(BigInt(wrapperAmount), {
+            skipBalanceCheck: true,
             onUnwrapSubmitted: (hash) => {
                showToast("Unwrap submitted... waiting for proof", "info");
             },
