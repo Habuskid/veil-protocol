@@ -164,9 +164,19 @@ export default function RegistryTab({ provider, signer, address, fhevmReady, sho
           // It handles the encrypted burn asynchronously via KMS.
           tx = await wrapper["unwrap(uint64)"](wrapperAmount);
         } catch (e) {
-          console.error("Unwrap reverted on-chain:", e);
-          const reason = e.reason || e.message || String(e);
-          throw new Error(`The smart contract rejected the unwrap. This usually means: 1) You do not have enough wrapped tokens, or 2) You have a pending unwrap request being processed by the Zama KMS. (Raw error: ${e.code || reason})`);
+          if (e.code === 'CALL_EXCEPTION' || e.code === 'INVALID_ARGUMENT' || e.message.includes('missing revert data') || e.message.includes('require(false)')) {
+            try {
+              tx = await wrapper["unwrap(uint256)"](wrapperAmount);
+            } catch (fallbackErr) {
+              console.error("Unwrap reverted on-chain:", fallbackErr);
+              const reason = fallbackErr.reason || fallbackErr.message || String(fallbackErr);
+              throw new Error(`The smart contract rejected the unwrap. This usually means: 1) You do not have enough wrapped tokens, or 2) You have a pending unwrap request being processed by the Zama KMS. (Raw error: ${fallbackErr.code || reason})`);
+            }
+          } else {
+            console.error("Unwrap reverted on-chain:", e);
+            const reason = e.reason || e.message || String(e);
+            throw new Error(`The smart contract rejected the unwrap. This usually means: 1) You do not have enough wrapped tokens, or 2) You have a pending unwrap request being processed by the Zama KMS. (Raw error: ${e.code || reason})`);
+          }
         }
         await tx.wait();
         if (addTxHistory) addTxHistory({ type: 'Unwrap', hash: tx.hash, details: `Unwrapped ${amountStr} ${pair.erc20Sym}` });
